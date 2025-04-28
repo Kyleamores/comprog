@@ -1,0 +1,226 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+
+public class Transaction
+{
+    public string Description { get; set; }
+    public decimal Amount { get; set; }
+    public string Type { get; set; } // "Income" or "Expense"
+    public string Category { get; set; }
+    public DateTime Date { get; set; }
+
+    public Transaction(string description, decimal amount, string type, string category, DateTime date)
+    {
+        if (type != "Income" && type != "Expense")
+            throw new ArgumentException("Type must be either 'Income' or 'Expense'.");
+
+        Description = description;
+        Amount = amount;
+        Type = type;
+        Category = category;
+        Date = date;
+    }
+
+    public override string ToString()
+    {
+        return $"{Date.ToShortDateString()} | {Type} | {Category} | {Description} | ${Amount}";
+    }
+}
+
+public class BudgetTracker
+{
+    private List<Transaction> transactions = new List<Transaction>();
+
+    public void AddTransaction(Transaction transaction)
+    {
+        transactions.Add(transaction);
+    }
+
+    public decimal GetTotalIncome() =>
+        transactions.Where(t => t.Type == "Income").Sum(t => t.Amount);
+
+    public decimal GetTotalExpenses() =>
+        transactions.Where(t => t.Type == "Expense").Sum(t => t.Amount);
+
+    public decimal GetNetSavings() =>
+        GetTotalIncome() - GetTotalExpenses();
+
+    public Dictionary<string, decimal> GetCategoryWiseExpenses()
+    {
+        return transactions
+            .Where(t => t.Type == "Expense")
+            .GroupBy(t => t.Category)
+            .ToDictionary(g => g.Key, g => g.Sum(t => t.Amount));
+    }
+
+    public void SortByDate() =>
+        transactions = transactions.OrderBy(t => t.Date).ToList();
+
+    public void SortByAmount() =>
+        transactions = transactions.OrderByDescending(t => t.Amount).ToList();
+
+    public void SortByCategory() =>
+        transactions = transactions.OrderBy(t => t.Category).ToList();
+
+    public void ShowTextGraph()
+    {
+        var categoryData = GetCategoryWiseExpenses();
+        Console.WriteLine("\nExpense Breakdown by Category:");
+        foreach (var item in categoryData)
+        {
+            Console.WriteLine($"{item.Key.PadRight(15)}: {new string('#', (int)(item.Value / 10))} (${item.Value})");
+        }
+    }
+
+    public void ShowAllTransactions()
+    {
+        Console.WriteLine("\nAll Transactions:");
+        foreach (var t in transactions)
+        {
+            Console.WriteLine(t);
+        }
+    }
+
+    public void SaveToFile(string filePath)
+    {
+        using (StreamWriter writer = new StreamWriter(filePath))
+        {
+            foreach (var t in transactions)
+            {
+                writer.WriteLine($"{t.Description}|{t.Amount}|{t.Type}|{t.Category}|{t.Date}");
+            }
+        }
+    }
+
+    public void LoadFromFile(string filePath)
+    {
+        if (!File.Exists(filePath)) return;
+
+        foreach (var line in File.ReadAllLines(filePath))
+        {
+            var parts = line.Split('|');
+            if (parts.Length == 5)
+            {
+                string description = parts[0];
+                decimal amount = decimal.Parse(parts[1]);
+                string type = parts[2];
+                string category = parts[3];
+                DateTime date = DateTime.Parse(parts[4]);
+
+                transactions.Add(new Transaction(description, amount, type, category, date));
+            }
+        }
+    }
+}
+
+class Program
+{
+    static void Main()
+    {
+        BudgetTracker tracker = new BudgetTracker();
+        string filePath = "transactions.txt";
+        tracker.LoadFromFile(filePath);
+
+        while (true)
+        {
+            Console.WriteLine("\n--- Personal Budget Tracker ---");
+            Console.WriteLine("1. Add Transaction");
+            Console.WriteLine("2. View All Transactions");
+            Console.WriteLine("3. View Summary");
+            Console.WriteLine("4. View Text Graph");
+            Console.WriteLine("5. Sort Transactions");
+            Console.WriteLine("6. Save and Exit");
+            Console.Write("Choose an option: ");
+
+            switch (Console.ReadLine())
+            {
+                case "1":
+                    AddTransaction(tracker);
+                    break;
+                case "2":
+                    tracker.ShowAllTransactions();
+                    break;
+                case "3":
+                    ShowSummary(tracker);
+                    break;
+                case "4":
+                    tracker.ShowTextGraph();
+                    break;
+                case "5":
+                    SortMenu(tracker);
+                    break;
+                case "6":
+                    tracker.SaveToFile(filePath);
+                    Console.WriteLine("Saved. Exiting...");
+                    return;
+                default:
+                    Console.WriteLine("Invalid option.");
+                    break;
+            }
+        }
+    }
+
+    static void AddTransaction(BudgetTracker tracker)
+    {
+        try
+        {
+            Console.Write("Description: ");
+            string description = Console.ReadLine();
+
+            Console.Write("Amount: ");
+            decimal amount = decimal.Parse(Console.ReadLine());
+
+            Console.Write("Type (Income/Expense): ");
+            string type = Console.ReadLine();
+
+            Console.Write("Category: ");
+            string category = Console.ReadLine();
+
+            Console.Write("Date (yyyy-MM-dd): ");
+            DateTime date = DateTime.Parse(Console.ReadLine());
+
+            tracker.AddTransaction(new Transaction(description, amount, type, category, date));
+            Console.WriteLine("Transaction added!");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error adding transaction: " + ex.Message);
+        }
+    }
+
+    static void ShowSummary(BudgetTracker tracker)
+    {
+        Console.WriteLine($"\nTotal Income: ${tracker.GetTotalIncome()}");
+        Console.WriteLine($"Total Expenses: ${tracker.GetTotalExpenses()}");
+        Console.WriteLine($"Net Savings: ${tracker.GetNetSavings()}");
+    }
+
+    static void SortMenu(BudgetTracker tracker)
+    {
+        Console.WriteLine("Sort by:");
+        Console.WriteLine("1. Date");
+        Console.WriteLine("2. Amount");
+        Console.WriteLine("3. Category");
+
+        switch (Console.ReadLine())
+        {
+            case "1":
+                tracker.SortByDate();
+                Console.WriteLine("Sorted by date.");
+                break;
+            case "2":
+                tracker.SortByAmount();
+                Console.WriteLine("Sorted by amount.");
+                break;
+            case "3":
+                tracker.SortByCategory();
+                Console.WriteLine("Sorted by category.");
+                break;
+            default:
+                Console.WriteLine("Invalid option.");
+                break;
+        }
+    }
+}
